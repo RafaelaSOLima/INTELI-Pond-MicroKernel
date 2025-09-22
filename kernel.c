@@ -6,8 +6,12 @@ static int attempts;
 static int max_attempts = 7;
 static int game_won = 0;
 static int game_over = 0;
+static int game_started = 0;  // Nova variável para controlar se o jogo começou
 static char input_buffer[10];
 static int input_index = 0;
+
+// Variável para gerador de números aleatórios melhorado
+static unsigned int random_seed = 1;
 
 // Função principal do kernel
 void kernel_main() {
@@ -24,11 +28,7 @@ void kernel_main() {
     // Mostrar tela de boas-vindas
     show_welcome_screen();
     
-    // Inicializar jogo
-    init_game();
-    
-    print_string("4. Jogo inicializado!\n");
-    print_string("5. Sistema pronto!\n\n");
+    print_string("4. Sistema pronto!\n\n");
     
     // Loop principal do kernel
     while (1) {
@@ -52,12 +52,20 @@ void show_welcome_screen() {
 }
 
 void init_game() {
-    // Gerador de número pseudo-aleatório simples
-    // Usa timestamp do timer para seed
-    secret_number = (get_timer_tick() % 100) + 1;
+    // Melhor gerador de número pseudo-aleatório
+    // Usa timer + incremento da seed para melhor aleatoriedade
+    random_seed = (random_seed * 1664525 + 1013904223) ^ get_timer_tick();
+    secret_number = (random_seed % 100) + 1;
+    
+    // Debug: mostrar qual número foi gerado (remover depois)
+    print_string("\n[DEBUG] Numero secreto: ");
+    print_number(secret_number);
+    print_string("\n");
+    
     attempts = 0;
     game_won = 0;
     game_over = 0;
+    game_started = 1;
     input_index = 0;
     
     clear_input_buffer();
@@ -75,29 +83,33 @@ void start_new_game() {
 }
 
 void process_input(char c) {
-    if (game_over && c != '\n') {
+    // Se jogo não começou, qualquer tecla inicia
+    if (!game_started) {
+        init_game();
+        start_new_game();
+        return;
+    }
+    
+    // Se jogo acabou, apenas Enter reinicia
+    if (game_over) {
+        if (c == '\n' || c == '\r') {
+            init_game();
+            start_new_game();
+        }
         return;
     }
     
     if (c == '\n' || c == '\r') { // Enter
         if (input_index == 0) {
-            if (!game_over) {
-                start_new_game();
-            }
-            return;
-        }
-        
-        if (game_over) {
-            // Reiniciar jogo
-            init_game();
-            start_new_game();
+            print_string("\nDigite um numero!\n");
+            print_string("Digite seu palpite: ");
             return;
         }
         
         process_guess();
         
     } else if (c == '\b') { // Backspace
-        if (input_index > 0 && !game_over) {
+        if (input_index > 0) {
             input_index--;
             input_buffer[input_index] = '\0';
             
@@ -107,8 +119,8 @@ void process_input(char c) {
             move_cursor_back();
         }
         
-    } else if (c >= '0' && c <= '9' && input_index < 3 && !game_over) {
-        // Aceitar apenas dígitos
+    } else if (c >= '0' && c <= '9' && input_index < 3) {
+        // Aceitar apenas dígitos (máximo 3 para números até 100)
         input_buffer[input_index] = c;
         input_index++;
         input_buffer[input_index] = '\0';

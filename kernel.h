@@ -72,6 +72,7 @@ void print_number(int num);
 void move_cursor_back();
 void set_cursor_position(int x, int y);
 void scroll_screen();
+void set_terminal_color(unsigned char color);
 
 // Funções de utilidade
 void outb(unsigned short port, unsigned char val);

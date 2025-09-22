@@ -1,10 +1,14 @@
-# Makefile Simplificado para Debug
+# Makefile para Kernel C com Jogo Adivinhe o Número
 
 ASM = nasm
 CC = gcc
 LD = ld
 
-.PHONY: all clean run debug
+# Flags do compilador
+CFLAGS = -m32 -ffreestanding -fno-builtin -nostdlib -nostartfiles -nodefaultlibs -fno-stack-protector -fno-pie -c
+LDFLAGS = -m elf_i386 -T linker.ld
+
+.PHONY: all clean run debug info
 
 all: os.img
 
@@ -12,9 +16,31 @@ all: os.img
 bootloader.bin: boot.asm
 	$(ASM) -f bin boot.asm -o bootloader.bin
 
-# Kernel simples (apenas assembly)
-kernel.bin: kernel_entry.asm
-	$(ASM) -f bin kernel_entry.asm -o kernel.bin
+# Entrada do kernel em assembly
+kernel_entry.o: kernel_start.asm
+	$(ASM) -f elf32 kernel_start.asm -o kernel_entry.o
+
+# Arquivos C do kernel
+kernel.o: kernel.c kernel.h
+	$(CC) $(CFLAGS) kernel.c -o kernel.o
+
+display.o: display.c kernel.h
+	$(CC) $(CFLAGS) display.c -o display.o
+
+interrupts.o: interrupts.c kernel.h
+	$(CC) $(CFLAGS) interrupts.c -o interrupts.o
+
+io.o: io.c kernel.h
+	$(CC) $(CFLAGS) io.c -o io.o
+
+# Handlers de interrupção em assembly
+int_handlers.o: int_handlers.asm
+	$(ASM) -f elf32 int_handlers.asm -o int_handlers.o
+
+# Linkar o kernel
+kernel.bin: kernel_entry.o kernel.o display.o interrupts.o io.o int_handlers.o
+	$(LD) $(LDFLAGS) -o kernel.elf kernel_entry.o kernel.o display.o interrupts.o io.o int_handlers.o
+	objcopy -O binary kernel.elf kernel.bin
 
 # Criar imagem
 os.img: bootloader.bin kernel.bin
@@ -32,7 +58,7 @@ debug: os.img
 
 # Limpar
 clean:
-	rm -f *.bin *.img *.o
+	rm -f *.o *.bin *.img *.elf
 
 # Mostrar info
 info: os.img
